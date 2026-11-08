@@ -1,0 +1,26 @@
+name: Bale API probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: getMe reachability
+        env:
+          BALE_BOT_TOKEN: ${{ secrets.BALE_BOT_TOKEN }}
+        run: |
+          code=$(curl -s -o /tmp/me.json -w '%{http_code}' --max-time 25 \
+            "https://tapi.bale.ai/bot${BALE_BOT_TOKEN}/getMe" || true)
+          echo "http=$code"
+          cat /tmp/me.json 2>/dev/null || true
+          {
+            echo "## Bale getMe — http=$code"
+            echo '```json'
+            cat /tmp/me.json 2>/dev/null || echo '(no body / unreachable)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
