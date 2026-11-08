@@ -1,0 +1,26 @@
+name: Bot Watchdog
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  ensure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start bot if no active run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          active=$(gh run list --workflow bot-24x7.yml --limit 20 --json status \
+            --jq '[.[] | select(.status=="in_progress" or .status=="queued" or .status=="waiting")] | length')
+          echo "active_runs=$active"
+          if [ "$active" = "0" ]; then
+            gh workflow run bot-24x7.yml
+          fi

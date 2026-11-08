@@ -1,0 +1,49 @@
+name: Bale Bot 24/7
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [bot-chain]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: bale-bot-24x7
+  cancel-in-progress: false
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Probe Bale API reachability
+        env:
+          BALE_BOT_TOKEN: ${{ secrets.BALE_BOT_TOKEN }}
+        run: |
+          curl -s --max-time 20 "https://tapi.bale.ai/bot${BALE_BOT_TOKEN}/getMe" \
+            || echo "Bale API unreachable from this runner; poll loop will retry."
+
+      - name: Run bot (self-terminating window)
+        id: bot
+        env:
+          BALE_BOT_TOKEN: ${{ secrets.BALE_BOT_TOKEN }}
+          MINIAPP_URL: https://parsaplayer87-lang.github.io/balegram/
+          RUN_MINUTES: 300
+        run: node bot/server.js
+
+      # repository_dispatch triggered by GITHUB_TOKEN is recursion-exempt,
+      # so this reliably starts the successor run => continuous 24/7.
+      - name: Chain next 24/7 run
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X POST "repos/${{ github.repository }}/dispatches" \
+            -f event_type='bot-chain'
